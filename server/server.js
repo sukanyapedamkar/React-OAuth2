@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import axios from 'axios';
 import queryString from 'query-string';
 import jwt from 'jsonwebtoken';
@@ -38,7 +39,15 @@ const getTokenParams = (code) =>
 
   const app = express();
 
-  // Resolve CORS
+// Rate limiter for /user/posts route
+const userPostsLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+
+// Resolve CORS
 app.use(cors({
   origin: [
     config.clientUrl,
@@ -129,7 +138,7 @@ app.post("/auth/logout", (_, res) => {
   res.clearCookie("token").json({ message: "Logged out" });
 });
 
-app.get("/user/posts", auth, async (_, res) => {
+app.get("/user/posts", userPostsLimiter, auth, async (_, res) => {
   try {
     const { data } = await axios.get(config.postUrl);
     res.json({ posts: data?.slice(0, 5) });
